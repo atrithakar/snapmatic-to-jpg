@@ -1,7 +1,9 @@
 import os
+from extracting_data_from_pgta.extract3 import *
+from datetime import datetime, timezone
 
 def find_pgta(start_path = os.path.expanduser('~')):
-    matches = []
+    snapmatics = []
 
     ignored_dirs = {'/proc', '/sys', '/dev', '/run', '.local/share/Trash'}
 
@@ -14,17 +16,17 @@ def find_pgta(start_path = os.path.expanduser('~')):
         for file in files:
             if file.startswith('PGTA') and '.' not in file and '_' not in file:
                 # print(f'found {file}')
-                matches.append(os.path.join(root, file))
+                snapmatics.append(os.path.join(root, file))
 
-    return matches
+    return snapmatics
 
-def extract_snapmatic(matches):
+def extract_snapmatic(snapmatics):
 
-    if not matches or len(matches) == 0:
+    if not snapmatics or len(snapmatics) == 0:
         print("No images found")
         return
 
-    for file in matches:
+    for file in snapmatics:
         with open(file, 'rb') as f:
             data = f.read()
             jpeg_start = data.find(b'\xff\xd8\xff')
@@ -40,20 +42,39 @@ def extract_snapmatic(matches):
             else:
                 print("failed to extract")
 
-def print_matches(matches):
-    if not matches or len(matches) == 0:
+
+def print_snapmatics(snapmatics):
+    if not snapmatics or len(snapmatics) == 0:
         print("No images found")
         return
-    
-    print('[')
 
-    for match in matches:
-        print(f'    {match},')
+    for snapmatic in snapmatics:
+        print(f'FILE_PATH: {snapmatic}')
+        title, json_obj = extract_pgta_data(snapmatic)
+        # json_obj = extractJSON(snapmatic)
+        print(f'TITLE: {title}')
 
-    print(']')
+        coords = getJsonFields(json_obj, 'loc')
+        in_game_time = getJsonFields(json_obj, 'time')
+        real_world_time_unix_epoch = getJsonFields(json_obj, 'creat')
+        radio_station = getJsonFields(json_obj, 'rds', 'Radio Off')
+        real_world_time_utc = datetime.fromtimestamp(real_world_time_unix_epoch, tz=timezone.utc)
+
+        formatted_real_world_time = json.loads(
+            f'''
+            {{
+                "hour" : {real_world_time_utc.hour},
+                "minute" : {real_world_time_utc.minute},
+                "second" : {real_world_time_utc.second},
+                "day" : {real_world_time_utc.day},
+                "month" : {real_world_time_utc.month},
+                "year" : {real_world_time_utc.year}
+            }}
+            '''
+        )
+
+        print(f'LOCATION: {coords}\nIN GAME TIME: {in_game_time}\nREAL WORLD TIME: {formatted_real_world_time}\nRADIO STATION: {radio_station}\n')
+
 
 if __name__ == "__main__":
-    # extract_snapmatic()
-    # print(find_pgta('/home/atri/test_prefix/drive_c/users/atri/AppData/Roaming/Goldberg SocialClub Emu Saves/GTA V/0F74F4C4'))
-    print_matches(find_pgta('/home/atri/test_prefix/drive_c/users/atri/AppData/Roaming/Goldberg SocialClub Emu Saves/GTA V/0F74F4C4'))
-    # print(parse_pgta_header('/home/atri/test_prefix/drive_c/users/atri/AppData/Roaming/Goldberg SocialClub Emu Saves/GTA V/0F74F4C4/PGTA5519163650'))
+    print_snapmatics(find_pgta())
